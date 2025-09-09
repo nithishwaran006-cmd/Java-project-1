@@ -1,0 +1,210 @@
+package JavaPrg;
+
+import java.util.*;
+
+//Single-class program with inner classes
+public class MfgAppMain {
+
+ // ---------------- WorkOrder ----------------
+ static class WorkOrder {
+     private String woId;
+     private String product;
+     private int quantity;
+     private Date dueDate;
+     private String state; // PLANNED, RUNNING, HALTED, DONE
+
+     public WorkOrder(String woId, String product, int quantity, Date dueDate) {
+         this.woId = woId;
+         this.product = product;
+         this.quantity = quantity;
+         this.dueDate = dueDate;
+         this.state = "PLANNED";
+     }
+
+     // Getters/Setters
+     public String getWoId() { return woId; }
+     public String getProduct() { return product; }
+     public int getQuantity() { return quantity; }
+     public Date getDueDate() { return dueDate; }
+     public String getState() { return state; }
+
+     private void setState(String newState) {
+         // Encapsulation: guarding transitions
+         if (state.equals("PLANNED") && newState.equals("RUNNING")) state = newState;
+         else if (state.equals("RUNNING") && (newState.equals("HALTED") || newState.equals("DONE"))) state = newState;
+         else if (state.equals("HALTED") && newState.equals("RUNNING")) state = newState;
+         else if (state.equals("DONE")) System.out.println("WorkOrder already completed!");
+         else System.out.println("Invalid transition: " + state + " → " + newState);
+     }
+
+     public void startWO() { setState("RUNNING"); }
+     public void pauseWO() { setState("HALTED"); }
+     public void completeWO() { setState("DONE"); }
+
+     @Override
+     public String toString() {
+         return "WO{" + woId + ", product=" + product + ", qty=" + quantity + ", state=" + state + "}";
+     }
+ }
+
+ // ---------------- Machine (Base) ----------------
+ static class Machine {
+     protected String machineId;
+     protected String name;
+     protected int capacity;
+     protected String status; // IDLE, BUSY, DOWN
+     protected WorkOrder assignedWO;
+
+     public Machine(String machineId, String name, int capacity) {
+         this.machineId = machineId;
+         this.name = name;
+         this.capacity = capacity;
+         this.status = "IDLE";
+     }
+
+     public void assignWO(WorkOrder wo) {
+         if (status.equals("IDLE")) {
+             this.assignedWO = wo;
+             status = "BUSY";
+             wo.startWO();
+         } else {
+             System.out.println("Machine " + name + " not available.");
+         }
+     }
+
+     public void releaseWO() {
+         if (assignedWO != null) {
+             assignedWO.completeWO();
+             assignedWO = null;
+             status = "IDLE";
+         }
+     }
+
+     // Overloaded updateProgress()
+     public void updateProgress(int units) {
+         System.out.println(name + " produced " + units + " units.");
+     }
+     public void updateProgress(double percent) {
+         System.out.println(name + " progress " + percent + "% completed.");
+     }
+
+     public double lineOEE() { return 0.8; } // base OEE
+
+     @Override
+     public String toString() {
+         return "Machine{" + machineId + ", " + name + ", status=" + status + "}";
+     }
+ }
+
+ // ---------------- CNC Machine (Inheritance + Override) ----------------
+ static class CNC extends Machine {
+     public CNC(String id, String name, int capacity) {
+         super(id, name, capacity);
+     }
+     @Override
+     public double lineOEE() {
+         return 0.9; // CNC typically higher OEE
+     }
+ }
+
+ // ---------------- Assembly Line (Inheritance + Override) ----------------
+ static class AssemblyLine extends Machine {
+     public AssemblyLine(String id, String name, int capacity) {
+         super(id, name, capacity);
+     }
+     @Override
+     public double lineOEE() {
+         return 0.7; // Assembly more manual, less OEE
+     }
+ }
+
+ // ---------------- Operator ----------------
+ static class Operator {
+     private String operatorId;
+     private String name;
+     private String grade;
+     private String skills;
+     private String shift;
+
+     public Operator(String id, String name, String grade, String skills, String shift) {
+         this.operatorId = id;
+         this.name = name;
+         this.grade = grade;
+         this.skills = skills;
+         this.shift = shift;
+     }
+
+     public void operate(Machine m) {
+         System.out.println("Operator " + name + " operating " + m.name);
+     }
+
+     @Override
+     public String toString() {
+         return "Operator{" + name + ", grade=" + grade + ", shift=" + shift + "}";
+     }
+ }
+
+ // ---------------- Production Service ----------------
+ static class ProductionService {
+     private List<WorkOrder> workOrders = new ArrayList<>();
+     private List<Machine> machines = new ArrayList<>();
+
+     public void addWorkOrder(WorkOrder wo) { workOrders.add(wo); }
+     public void addMachine(Machine m) { machines.add(m); }
+
+     public void planWO(WorkOrder wo, Machine m) {
+         System.out.println("Planning WO " + wo.getWoId() + " on " + m.name);
+         m.assignWO(wo);
+     }
+
+     public void completeWO(Machine m) {
+         System.out.println("Completing WO on " + m.name);
+         m.releaseWO();
+     }
+
+     public void computeKPIs() {
+         double totalOEE = 0;
+         for (Machine m : machines) {
+             totalOEE += m.lineOEE(); // Polymorphism
+         }
+         System.out.println("Avg OEE: " + (totalOEE / machines.size()));
+     }
+ }
+
+ // ---------------- Main ----------------
+ public static void main(String[] args) {
+     ProductionService ps = new ProductionService();
+
+     WorkOrder wo1 = new WorkOrder("WO1", "GearBox", 100, new Date());
+     WorkOrder wo2 = new WorkOrder("WO2", "EngineBlock", 50, new Date());
+
+     Machine cnc1 = new CNC("M1", "CNC-101", 10);
+     Machine line1 = new AssemblyLine("M2", "Assembly-A", 20);
+
+     Operator op1 = new Operator("O1", "Ravi", "A", "CNC", "Day");
+     Operator op2 = new Operator("O2", "Sita", "B", "Assembly", "Night");
+
+     ps.addWorkOrder(wo1);
+     ps.addWorkOrder(wo2);
+     ps.addMachine(cnc1);
+     ps.addMachine(line1);
+
+     // Assign and process
+     ps.planWO(wo1, cnc1);
+     op1.operate(cnc1);
+     cnc1.updateProgress(50);
+     cnc1.updateProgress(75.5);
+     ps.completeWO(cnc1);
+
+     ps.planWO(wo2, line1);
+     op2.operate(line1);
+     line1.updateProgress(20);
+     ps.completeWO(line1);
+
+     // KPIs
+     ps.computeKPIs();
+
+     // Reports
+     System.out.println("WorkOrders: " + wo1 + ", " + wo2);
+ }
+}
